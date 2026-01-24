@@ -1,14 +1,15 @@
 # src/angle_demo.py
-# Goal: Open webcam, run MediaPipe BlazePose live, compute elbow/knee angles,
-# and display them ONLY when the required joints are confidently detected.
+# Goal: The goal of this program is to open the webcam, run MediaPipe BlazePose live, compute elbow/knee angles,
+# and display them only when the required joints are confidently detected.
 # Press "q" to quit.
 
 import cv2
 import mediapipe as mp
 
 from angles_utils import angle_degrees, landmark_to_point2d
+from squat_rules import evaluate_squat
 
-# MediaPipe Pose landmark indices
+# These. are the MediaPipe Pose landmark indices
 LEFT_SHOULDER = 11
 LEFT_ELBOW = 13
 LEFT_WRIST = 15
@@ -17,31 +18,24 @@ LEFT_HIP = 23
 LEFT_KNEE = 25
 LEFT_ANKLE = 27
 
-# Visibility threshold: increase to be stricter (e.g., 0.6 or 0.7)
+# These are the  Visibility threshold: These can be increased like 0.6 or 0.7 to be more stricter
 VIS_THRESH = 0.5
 
 
 def is_visible(lm) -> bool:
     """
-    Returns True if the landmark is confidently visible.
-    MediaPipe Pose landmarks usually have .visibility in [0..1].
+    True is returned when body landmarks are confidently visible and MediaPipe pose landmarsk usually have .visibility in [0,1].
     """
     return hasattr(lm, "visibility") and lm.visibility is not None and lm.visibility >= VIS_THRESH
-
-def resize_to_fit(img, max_w=1280, max_h=720):
-    h, w = img.shape[:2]
-    scale = min(max_w / w, max_h / h, 1.0)  # never upscale
-    new_w, new_h = int(w * scale), int(h * scale)
-    return cv2.resize(img, (new_w, new_h))
 
 
 def main():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        raise RuntimeError("❌ Webcam could not open. Try index 0/1/2 and permissions.")
+        raise RuntimeError("The Webcam could not open. Try index 0/1/2 and permissions.")
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT,540)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     mp_pose = mp.solutions.pose
     mp_drawing = mp.solutions.drawing_utils
@@ -56,15 +50,15 @@ def main():
         min_tracking_confidence=0.5,
     ) as pose:
 
-        print("✅ Angle demo running. Press 'q' to quit.")
+        print("Angle demo is running. Press 'q' to quit.")
 
         while True:
             ret, frame = cap.read()
             if not ret:
-                print("⚠️ Could not read frame from webcam.")
+                print("Frame from the webcam could not be read")
                 break
 
-            # Convert BGR (OpenCV) -> RGB (MediaPipe)
+            # Convert BGR (OpenCV) to RGB (MediaPipe)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_rgb.flags.writeable = False
             results = pose.process(frame_rgb)
@@ -73,7 +67,7 @@ def main():
             annotated = frame.copy()
 
             if results.pose_landmarks:
-                # Draw pose landmarks/skeleton
+                # Draw pose landmarks or the skeleton
                 mp_drawing.draw_landmarks(
                     annotated,
                     results.pose_landmarks,
@@ -81,9 +75,9 @@ def main():
                     landmark_drawing_spec=mp_styles.get_default_pose_landmarks_style(),
                 )
 
-                lm = results.pose_landmarks.landmark  # list of 33 landmarks
+                lm = results.pose_landmarks.landmark  # This is the list of 33 landmarks
 
-                # ----- LEFT ELBOW ANGLE -----
+                # The code for the left elbow amgle 
                 if is_visible(lm[LEFT_SHOULDER]) and is_visible(lm[LEFT_ELBOW]) and is_visible(lm[LEFT_WRIST]):
                     elbow = angle_degrees(
                         landmark_to_point2d(lm[LEFT_SHOULDER]),
@@ -94,7 +88,7 @@ def main():
                 else:
                     elbow_text = "Left Elbow: N/A"
 
-                # ----- LEFT KNEE ANGLE -----
+                # This is the code for the left knee angle
                 if is_visible(lm[LEFT_HIP]) and is_visible(lm[LEFT_KNEE]) and is_visible(lm[LEFT_ANKLE]):
                     knee = angle_degrees(
                         landmark_to_point2d(lm[LEFT_HIP]),
@@ -102,10 +96,23 @@ def main():
                         landmark_to_point2d(lm[LEFT_ANKLE]),
                     )
                     knee_text = f"Left Knee: {knee:.1f} deg"
+
+                    feedback = evaluate_squat(knee)
+                    cv2.putText(
+                        annotated,
+                        f"Squat: {feedback.label} - {feedback.detail}",
+                        (20, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (255, 255, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
+   
                 else:
                     knee_text = "Left Knee: N/A"
 
-                # Put text on screen
+                # Putting text om screen
                 cv2.putText(
                     annotated,
                     elbow_text,
@@ -127,12 +134,8 @@ def main():
                     cv2.LINE_AA,
                 )
 
-                # Optional: show raw visibility values (useful for debugging)
-                # cv2.putText(annotated, f"Elbow vis: {lm[LEFT_ELBOW].visibility:.2f}", (20, 120),
-                #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-
             else:
-                # No pose detected at all
+                # This is when no pose is detected at all
                 cv2.putText(
                     annotated,
                     "No pose detected",
@@ -144,8 +147,7 @@ def main():
                     cv2.LINE_AA,
                 )
 
-            display = resize_to_fit(annotated, max_w=1280, max_h=720)
-            cv2.imshow("VisionFit - Angle Demo (press 'q')", display)
+            cv2.imshow("VisionFit - Angle Demo (press 'q')", annotated)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
