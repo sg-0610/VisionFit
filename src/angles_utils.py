@@ -25,23 +25,23 @@ def angle_degrees(a: Point2D, b: Point2D, c: Point2D) -> float:
 
     Uses: arccos( (BA · BC) / (|BA| |BC|) ) (This is the standard vector angle formula)
     """
-    #
+    # The System draws two lines and the angle between those two lines is the joint angle
     ba = _to_np(a) - _to_np(b)
     bc = _to_np(c) - _to_np(b)
 
     ba_norm = np.linalg.norm(ba)
     bc_norm = np.linalg.norm(bc)
-
+# This part here makes sure that he calculation is safe if something goes wrong the system would not crash but safely return angle not avalible
     if ba_norm == 0 or bc_norm == 0:
         return float("nan")
 
     cos_angle = float(np.dot(ba, bc) / (ba_norm * bc_norm))
     cos_angle = max(-1.0, min(1.0, cos_angle))  # clamp for numerical stability
-
+# The angle that the computer calculates internally it converts it to degrees
     angle_rad = math.acos(cos_angle)
     return math.degrees(angle_rad)
 
-
+#This makes it easier to use in angle claculations
 def landmark_to_point2d(lm) -> Point2D:
     """
     Convert a MediaPipe landmark to a 2D point in normalized coordinates (0..1).
