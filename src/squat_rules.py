@@ -17,7 +17,7 @@ def evaluate_squat(knee_angle_deg: float) -> SquatFeedback:
     - Lower knee angle means deeper squat
     """
     if knee_angle_deg != knee_angle_deg:  # Not a number check
-        return SquatFeedback("No pose detected" so, "Could not compute knee angle.")
+        return SquatFeedback("No pose detected so, Could not compute knee angle.")
 
     # These are simple ranges these can be tuned later
     if knee_angle_deg > 160:
