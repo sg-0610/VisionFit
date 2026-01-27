@@ -29,6 +29,14 @@ def draw_panel(img, x, y, w, h, alpha=0.55):
     cv2.rectangle(overlay, (x, y), (x + w, y + h), (0, 0, 0), -1)  # black box
     cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
 
+def knee_color(knee_angle:float):
+    #This returns BGR colour for Open CV
+    if knee_angle is None or knee_angle != knee_angle: #NaN
+        return (0,0,255) #colour red
+    if 110<=knee_angle <=160:
+        return(0,255,0) #Colour: Green
+    return(0,165,255) #Colour amber
+
 
 def put_text_with_outline(img, text, org, font_scale=0.8, color=(255, 255, 255), thickness=2):
     """
@@ -41,16 +49,17 @@ def put_text_with_outline(img, text, org, font_scale=0.8, color=(255, 255, 255),
 
 def feedback_color(label: str):
     """
-    color coded sqaut rules
+    color coded squat rules
     """
     l = label.lower()
     if "good" in l:
-        return (0, 200, 0)      # green
+        return (0, 200, 0)      # Green if the posture is good
     if "deep" in l:
-        return (0, 165, 255)    # amber/orange
+        return (0, 165, 255)    # Amber/ orange if you are doing it too deep
     if "too" in l:
-        return (0, 0, 255)      # red
-    return (200, 200, 200)      # grey
+        return (0, 0, 255)      # If very high it turns into red
+                                #Grey if nothing is detected
+    return (200, 200, 200)
 
 def is_visible(lm) -> bool:
     """
@@ -96,17 +105,17 @@ def main():
 
             annotated = frame.copy()
 
-            # --- HUD layout ---
+            # This is the HUD layout
             panel_x, panel_y = 20, 20
             panel_w, panel_h = 620, 190
             draw_panel(annotated, panel_x, panel_y, panel_w, panel_h, alpha=0.50)
 
-            # Title
+            # The Title
             put_text_with_outline(annotated, "VISIONFIT  •  Live Form Check", (panel_x + 15, panel_y + 30), 0.85)
 
 
             if results.pose_landmarks:
-                # Draw pose landmarks / skeleton
+                # Drawing pose landmarks / skeleton
                 mp_drawing.draw_landmarks(
                     annotated,
                     results.pose_landmarks,
@@ -116,11 +125,11 @@ def main():
 
                 lm = results.pose_landmarks.landmark  # list of 33 landmarks
 
-                # Default text values
+                # These are the default text values
                 elbow_text = "Left Elbow: Not detected"
                 knee_text = "Left Knee: Not detected"
 
-                # Compute elbow angle if visible
+                # Computing the elbow angle if they are visible
                 if is_visible(lm[LEFT_SHOULDER]) and is_visible(lm[LEFT_ELBOW]) and is_visible(lm[LEFT_WRIST]):
                     elbow = angle_degrees(
                         landmark_to_point2d(lm[LEFT_SHOULDER]),
@@ -129,7 +138,7 @@ def main():
                     )
                     elbow_text = f"Left Elbow: {elbow:.1f} deg"
 
-                # Compute knee angle if visible
+                # Computing the knee angle if it is visible
                 knee = None
                 if is_visible(lm[LEFT_HIP]) and is_visible(lm[LEFT_KNEE]) and is_visible(lm[LEFT_ANKLE]):
                     knee = angle_degrees(
@@ -138,13 +147,19 @@ def main():
                         landmark_to_point2d(lm[LEFT_ANKLE]),
                     )
                     knee_text = f"Left Knee: {knee:.1f} deg"
+                
+                h,w, _=annotated.shape
+                knee_lm=lm[LEFT_KNEE]
+                knee_px=(int(knee_lm.x * w), int(knee_lm.y *h))
 
-                # Compute squat feedback ONLY if knee exists
+                cv2.circle(annotated, knee_px, 10, knee_color(knee), -1)
+
+                # Computing the squat feedback only if it exists
                 feedback = None
                 if knee is not None:
                     feedback = evaluate_squat(knee)
 
-                # --- HUD draw (only ONCE) ---
+                # Drawing informational UI elements like text, panels, indicators on top of the live video feed
                 put_text_with_outline(
                     annotated,
                     elbow_text,
@@ -187,7 +202,7 @@ def main():
                     )
 
             else:
-                # No pose detected at all (HUD only once)
+                # This code is for when no pose is detected
                 put_text_with_outline(
                     annotated,
                     "No pose detected",
