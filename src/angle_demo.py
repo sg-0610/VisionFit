@@ -3,6 +3,7 @@
 # and display them only when the required joints are confidently detected.
 # Press "q" to quit.
 
+import time
 import cv2
 import mediapipe as mp
 
@@ -95,7 +96,9 @@ def main():
 
         print("Angle demo is running. Press 'q' to quit.")
 
+        frame_count= 0
         while True:
+            t0 = time.perf_counter()
             ret, frame = cap.read()
             if not ret:
                 print("Frame from the webcam could not be read")
@@ -109,15 +112,8 @@ def main():
 
             annotated = frame.copy()
 
-            # This is the HUD layout
-            panel_x, panel_y = 20, 20
-            panel_w, panel_h = 620, 230
-            draw_panel(annotated, panel_x, panel_y, panel_w, panel_h, alpha=0.50)
-
-
-
             if results.pose_landmarks:
-                # Draw pose skeleton
+                # Drawing pose skeletons
                 mp_drawing.draw_landmarks(
                     annotated,
                     results.pose_landmarks,
@@ -125,12 +121,11 @@ def main():
                     landmark_drawing_spec=mp_styles.get_default_pose_landmarks_style(),
                 )
 
-                lm = results.pose_landmarks.landmark  # 33 landmarks
+                lm = results.pose_landmarks.landmark  # Showing 33 body landmarks
                 h, w, _ = annotated.shape
 
-                # -----------------------------
-                # 1) Compute angles (left/right)
-                # -----------------------------
+                # 1) Computing angles (left and right)
+            
                 elbow_text = "Left Elbow: Not detected"
                 left_knee_text = "Left Knee: Not detected"
                 right_knee_text = "Right Knee: Not detected"
@@ -165,9 +160,9 @@ def main():
                     )
                     right_knee_text = f"Right Knee: {right_knee:.1f} deg"
 
-                # ---------------------------------------
-                # 2) Draw circles on BOTH knees (if exist)
-                # ---------------------------------------
+                
+                # 2) Draw circles on BOTH knees if they exist
+                
                 if left_knee is not None:
                     lk = lm[LEFT_KNEE]
                     lk_px = (int(lk.x * w), int(lk.y * h))
@@ -178,9 +173,9 @@ def main():
                     rk_px = (int(rk.x * w), int(rk.y * h))
                     cv2.circle(annotated, rk_px, 12, knee_color(right_knee), -1)
 
-                # ---------------------------------------
+                
                 # 3) Average knee angle for squat feedback
-                # ---------------------------------------
+
                 avg_knee = None
                 if left_knee is not None and right_knee is not None:
                     avg_knee = (left_knee + right_knee) / 2.0
@@ -194,21 +189,21 @@ def main():
                     feedback = evaluate_squat(avg_knee)
                     squat_text = f"Squat (avg): {feedback.label} - {feedback.detail}"
 
-                # -----------------------------
-                # 4) HUD panel (no overlap)
-                # -----------------------------
+                
+                # 4) The  HUD panel 
+                
                 panel_x, panel_y = 20, 20
                 panel_w, panel_h = 620, 230
                 draw_panel(annotated, panel_x, panel_y, panel_w, panel_h, alpha=0.50)
 
-                # Title
+                # The Title
                 put_text_with_outline(annotated, "VISIONFIT: Live Form Check", (panel_x + 15, panel_y + 30), 0.85)
 
-                # Fixed spacing lines
+                #These are the Fixed spacing lines
                 line_y = panel_y + 70
                 gap = 35
 
-                # Elbow
+                # When Elbow is not detected
                 put_text_with_outline(
                     annotated,
                     elbow_text,
@@ -218,7 +213,7 @@ def main():
                 )
                 line_y += gap
 
-                # Left knee
+                # when Left knee
                 put_text_with_outline(
                     annotated,
                     left_knee_text,
@@ -228,7 +223,7 @@ def main():
                 )
                 line_y += gap
 
-                # Right knee
+                # When Right knee is not detected
                 put_text_with_outline(
                     annotated,
                     right_knee_text,
@@ -238,7 +233,7 @@ def main():
                 )
                 line_y += gap
 
-                # Squat
+                # Squat Feedback
                 
                 if feedback is None:
                         put_text_with_outline(
@@ -251,7 +246,7 @@ def main():
                 else:
                         c = feedback_color(feedback.label)
 
-                        # Line 1: label only
+                        # Line 1: Squat label feedback
                         put_text_with_outline(
                             annotated,
                             f"Squat (avg): {feedback.label}",
@@ -260,7 +255,7 @@ def main():
                             c
                         )
 
-                        # Line 2: detail below (smaller font)
+                        # Line 2: details of the feedback (smaller font)
                         put_text_with_outline(
                             annotated,
                             f"Tip: {feedback.detail}",
@@ -268,7 +263,21 @@ def main():
                             0.70,
                             (255, 255, 255)
                         )
-
+            
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            cv2.putText(
+                annotated,
+                f"Loop latency: {latency_ms:.1f} ms",
+                (20, h-20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            frame_count += 1
+            if frame_count % 60 == 0:
+                print(f"[info] avg-ish loop latency now: {latency_ms:.1f} ms")
             
 
             cv2.imshow("VisionFit - Angle Demo (press 'q')", annotated)
