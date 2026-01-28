@@ -18,6 +18,10 @@ LEFT_HIP = 23
 LEFT_KNEE = 25
 LEFT_ANKLE = 27
 
+RIGHT_HIP = 24
+RIGHT_KNEE = 26
+RIGHT_ANKLE = 28
+
 # These are the  Visibility threshold: These can be increased like 0.6 or 0.7 to be more stricter
 VIS_THRESH = 0.5
 
@@ -107,15 +111,13 @@ def main():
 
             # This is the HUD layout
             panel_x, panel_y = 20, 20
-            panel_w, panel_h = 620, 190
+            panel_w, panel_h = 620, 230
             draw_panel(annotated, panel_x, panel_y, panel_w, panel_h, alpha=0.50)
 
-            # The Title
-            put_text_with_outline(annotated, "VISIONFIT  •  Live Form Check", (panel_x + 15, panel_y + 30), 0.85)
 
 
             if results.pose_landmarks:
-                # Drawing pose landmarks / skeleton
+                # Draw pose skeleton
                 mp_drawing.draw_landmarks(
                     annotated,
                     results.pose_landmarks,
@@ -123,13 +125,18 @@ def main():
                     landmark_drawing_spec=mp_styles.get_default_pose_landmarks_style(),
                 )
 
-                lm = results.pose_landmarks.landmark  # list of 33 landmarks
+                lm = results.pose_landmarks.landmark  # 33 landmarks
+                h, w, _ = annotated.shape
 
-                # These are the default text values
+                # -----------------------------
+                # 1) Compute angles (left/right)
+                # -----------------------------
                 elbow_text = "Left Elbow: Not detected"
-                knee_text = "Left Knee: Not detected"
+                left_knee_text = "Left Knee: Not detected"
+                right_knee_text = "Right Knee: Not detected"
+                squat_text = "Squat: Not detected"
 
-                # Computing the elbow angle if they are visible
+                # Left elbow angle (optional UI)
                 if is_visible(lm[LEFT_SHOULDER]) and is_visible(lm[LEFT_ELBOW]) and is_visible(lm[LEFT_WRIST]):
                     elbow = angle_degrees(
                         landmark_to_point2d(lm[LEFT_SHOULDER]),
@@ -138,92 +145,131 @@ def main():
                     )
                     elbow_text = f"Left Elbow: {elbow:.1f} deg"
 
-                # Computing the knee angle if it is visible
-                knee = None
+                # Left knee
+                left_knee = None
                 if is_visible(lm[LEFT_HIP]) and is_visible(lm[LEFT_KNEE]) and is_visible(lm[LEFT_ANKLE]):
-                    knee = angle_degrees(
+                    left_knee = angle_degrees(
                         landmark_to_point2d(lm[LEFT_HIP]),
                         landmark_to_point2d(lm[LEFT_KNEE]),
                         landmark_to_point2d(lm[LEFT_ANKLE]),
                     )
-                    knee_text = f"Left Knee: {knee:.1f} deg"
-                
-                h,w, _=annotated.shape
-                knee_lm=lm[LEFT_KNEE]
-                knee_px=(int(knee_lm.x * w), int(knee_lm.y *h))
+                    left_knee_text = f"Left Knee: {left_knee:.1f} deg"
 
-                cv2.circle(annotated, knee_px, 10, knee_color(knee), -1)
+                # Right knee
+                right_knee = None
+                if is_visible(lm[RIGHT_HIP]) and is_visible(lm[RIGHT_KNEE]) and is_visible(lm[RIGHT_ANKLE]):
+                    right_knee = angle_degrees(
+                        landmark_to_point2d(lm[RIGHT_HIP]),
+                        landmark_to_point2d(lm[RIGHT_KNEE]),
+                        landmark_to_point2d(lm[RIGHT_ANKLE]),
+                    )
+                    right_knee_text = f"Right Knee: {right_knee:.1f} deg"
 
-                # Computing the squat feedback only if it exists
+                # ---------------------------------------
+                # 2) Draw circles on BOTH knees (if exist)
+                # ---------------------------------------
+                if left_knee is not None:
+                    lk = lm[LEFT_KNEE]
+                    lk_px = (int(lk.x * w), int(lk.y * h))
+                    cv2.circle(annotated, lk_px, 12, knee_color(left_knee), -1)
+
+                if right_knee is not None:
+                    rk = lm[RIGHT_KNEE]
+                    rk_px = (int(rk.x * w), int(rk.y * h))
+                    cv2.circle(annotated, rk_px, 12, knee_color(right_knee), -1)
+
+                # ---------------------------------------
+                # 3) Average knee angle for squat feedback
+                # ---------------------------------------
+                avg_knee = None
+                if left_knee is not None and right_knee is not None:
+                    avg_knee = (left_knee + right_knee) / 2.0
+                elif left_knee is not None:
+                    avg_knee = left_knee
+                elif right_knee is not None:
+                    avg_knee = right_knee
+
                 feedback = None
-                if knee is not None:
-                    feedback = evaluate_squat(knee)
+                if avg_knee is not None:
+                    feedback = evaluate_squat(avg_knee)
+                    squat_text = f"Squat (avg): {feedback.label} - {feedback.detail}"
 
-                # Drawing informational UI elements like text, panels, indicators on top of the live video feed
+                # -----------------------------
+                # 4) HUD panel (no overlap)
+                # -----------------------------
+                panel_x, panel_y = 20, 20
+                panel_w, panel_h = 620, 230
+                draw_panel(annotated, panel_x, panel_y, panel_w, panel_h, alpha=0.50)
+
+                # Title
+                put_text_with_outline(annotated, "VISIONFIT: Live Form Check", (panel_x + 15, panel_y + 30), 0.85)
+
+                # Fixed spacing lines
+                line_y = panel_y + 70
+                gap = 35
+
+                # Elbow
                 put_text_with_outline(
                     annotated,
                     elbow_text,
-                    (panel_x + 15, panel_y + 80),
+                    (panel_x + 15, line_y),
                     0.80,
                     (180, 180, 180) if "Not detected" in elbow_text else (255, 255, 255),
                 )
+                line_y += gap
 
+                # Left knee
                 put_text_with_outline(
                     annotated,
-                    knee_text,
-                    (panel_x + 15, panel_y + 120),
+                    left_knee_text,
+                    (panel_x + 15, line_y),
                     0.80,
-                    (180, 180, 180) if "Not detected" in knee_text else (255, 255, 255),
+                    (180, 180, 180) if "Not detected" in left_knee_text else (255, 255, 255),
                 )
+                line_y += gap
 
+                # Right knee
+                put_text_with_outline(
+                    annotated,
+                    right_knee_text,
+                    (panel_x + 15, line_y),
+                    0.80,
+                    (180, 180, 180) if "Not detected" in right_knee_text else (255, 255, 255),
+                )
+                line_y += gap
+
+                # Squat
+                
                 if feedback is None:
-                    put_text_with_outline(
-                        annotated,
-                        "Squat: Not detected",
-                        (panel_x + 15, panel_y + 160),
-                        0.80,
-                        (180, 180, 180),
-                    )
+                        put_text_with_outline(
+                            annotated,
+                            "Squat (avg): Not detected",
+                            (panel_x + 15, line_y),
+                            0.80,
+                            (180, 180, 180)
+                        )
                 else:
-                    c = feedback_color(feedback.label)
-                    put_text_with_outline(
-                        annotated,
-                        f"Squat: {feedback.label}",
-                        (panel_x + 15, panel_y + 160),
-                        0.80,
-                        c,
-                    )
-                    put_text_with_outline(
-                        annotated,
-                        feedback.detail,
-                        (panel_x + 250, panel_y + 160),
-                        0.70,
-                        (255, 255, 255),
-                    )
+                        c = feedback_color(feedback.label)
 
-            else:
-                # This code is for when no pose is detected
-                put_text_with_outline(
-                    annotated,
-                    "No pose detected",
-                    (panel_x + 15, panel_y + 80),
-                    0.80,
-                    (180, 180, 180),
-                )
-                put_text_with_outline(
-                    annotated,
-                    "Left Elbow: Not detected",
-                    (panel_x + 15, panel_y + 120),
-                    0.80,
-                    (180, 180, 180),
-                )
-                put_text_with_outline(
-                    annotated,
-                    "Left Knee: Not detected",
-                    (panel_x + 15, panel_y + 160),
-                    0.80,
-                    (180, 180, 180),
-                )  
+                        # Line 1: label only
+                        put_text_with_outline(
+                            annotated,
+                            f"Squat (avg): {feedback.label}",
+                            (panel_x + 15, line_y),
+                            0.80,
+                            c
+                        )
+
+                        # Line 2: detail below (smaller font)
+                        put_text_with_outline(
+                            annotated,
+                            f"Tip: {feedback.detail}",
+                            (panel_x + 15, line_y + 30),
+                            0.70,
+                            (255, 255, 255)
+                        )
+
+            
 
             cv2.imshow("VisionFit - Angle Demo (press 'q')", annotated)
 

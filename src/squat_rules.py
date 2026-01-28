@@ -20,10 +20,10 @@ def evaluate_squat(knee_angle_deg: float) -> SquatFeedback:
         return SquatFeedback("No pose detected so, Could not compute knee angle.")
 
     # These are simple ranges these can be tuned later
-    if knee_angle_deg > 160:
+    if knee_angle_deg > 155:
         return SquatFeedback("Too high", "Lower down (bend knees more).")
-    if 110 <= knee_angle_deg <= 160:
+    if 130 <= knee_angle_deg <= 155:
         return SquatFeedback("Good range", "Nice depth. Keep chest up.")
-    if 90 <= knee_angle_deg < 110:
+    if 80 <= knee_angle_deg < 100:
         return SquatFeedback("Deep", "Good depth. Maintain control.")
     return SquatFeedback("Too deep", "Rise slightly to protect knees.")
